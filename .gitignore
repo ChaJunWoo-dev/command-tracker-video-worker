@@ -1,9 +1,9 @@
 .venv
 .env
-command-tracker.json
+
 *.pyc
 *.pth
+__pycache__/
+
 *.mp4
 *.avi
-
-settings*

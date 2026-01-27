@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(C:/Users/wnsdn/miniconda3/envs/openmmlab/python.exe c:/Users/wnsdn/commander/command-tracker-ai/ai/main.py)"
+    ]
+  }
+}

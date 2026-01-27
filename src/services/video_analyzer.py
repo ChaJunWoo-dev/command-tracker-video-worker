@@ -12,7 +12,6 @@ class VideoAnalyzer:
         self,
         detector: PersonDetector,
         pose_estimator: PoseEstimator,
-        character: str,
         position: str = "left",
     ):
         self.detector = detector

@@ -3,6 +3,7 @@ load_dotenv(override=True)
 
 import asyncio
 import signal
+from concurrent.futures import ThreadPoolExecutor
 from functools import partial
 
 from infra.rabbitmq_client import RabbitMQClient
@@ -23,6 +24,7 @@ async def main():
 
     detector = PersonDetector()
     pose_estimator = PoseEstimator()
+    pool = ThreadPoolExecutor(max_workers=2)
 
     async with RabbitMQClient() as rabbitmq:
         await rabbitmq.consume(
@@ -30,11 +32,14 @@ async def main():
             partial(
                 on_message,
                 rabbitmq=rabbitmq,
+                pool=pool,
                 detector=detector,
-                pose_estimator=pose_estimator
+                pose_estimator=pose_estimator,
             )
         )
         await shutdown_event.wait()
+
+    pool.shutdown(wait=True)
 
 
 if __name__ == "__main__":

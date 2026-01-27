@@ -30,7 +30,7 @@ class RabbitMQClient:
         )
 
         self.channel = await self.connection.channel()
-        await self.channel.set_qos(prefetch_count=1)
+        await self.channel.set_qos(prefetch_count=2)
 
         await self.channel.declare_queue(
             RabbitMQConfig.VIDEO_PROCESS,

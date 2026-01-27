@@ -1,4 +1,6 @@
 import json
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
 from aio_pika import IncomingMessage
 
 from infra.s3_client import S3Client
@@ -7,12 +9,11 @@ from infra.rabbitmq_client import RabbitMQClient
 from infra.temp_storage import TempStorage
 from ai.detector import PersonDetector
 from ai.pose_estimator import PoseEstimator
-from services.video_analyzer import VideoAnalyzer
-from services.icon_composer import IconComposer
-from services.command_service import MotionRecognizer
+from worker.analysis_worker import run_analysis
 from config.settings import get_config
 from config.constants import RabbitMQConfig, S3Config, ErrorCode, Messages
 from config.exceptions import AppError
+from pathlib import Path
 
 config = get_config()
 
@@ -20,15 +21,16 @@ config = get_config()
 async def on_message(
     msg: IncomingMessage,
     rabbitmq: RabbitMQClient,
+    pool: ThreadPoolExecutor,
     detector: PersonDetector,
-    pose_estimator: PoseEstimator
+    pose_estimator: PoseEstimator,
 ):
     async with msg.process():
         data = json.loads(msg.body.decode())
 
         file_name = data["filename"]
-        file_name_split = file_name.split(".")
-        job_id = file_name_split[0]
+        file_path = Path(file_name)
+        job_id = file_path.stem
         start = data["trimStart"]
         end = data["trimEnd"]
 
@@ -36,7 +38,7 @@ async def on_message(
         ffmpeg = FFmpegClient()
 
         async with S3Client() as s3, storage.job_dir(job_id) as job:
-            ext = file_name_split[-1]
+            ext = file_path.suffix[1:]
             input_path = job / f"raw.{ext}"
             output_path = job / f"cut.{ext}"
             final_path = job / f"final.{ext}"
@@ -55,26 +57,17 @@ async def on_message(
                     raise AppError(ErrorCode.CUT_FAILED, Messages.Error.CUT_FAILED)
 
                 try:
-                    character = data["character"]
-                    position = data["position"]
-                    analyzer = VideoAnalyzer(detector, pose_estimator, character, position)
-                    icon_composer = IconComposer()
-                    motion_recognizer = MotionRecognizer(character, position)
-
-                    overlays = []
-                    for result in analyzer.analyze(output_path, motion_recognizer):
-                        if result["command"]:
-                            inputs = motion_recognizer.get_input(result["command"])
-                            image_path = job / f"{result['frame_idx']}.png"
-                            icon_composer.compose(inputs, image_path)
-
-                            overlays.append({
-                                "frame": result["frame_idx"],
-                                "image_path": image_path,
-                            })
-
-                    if not overlays:
-                        raise AppError(ErrorCode.NO_SUBTITLE, Messages.Error.NO_SUBTITLE)
+                    loop = asyncio.get_running_loop()
+                    overlays = await loop.run_in_executor(
+                        pool,
+                        run_analysis,
+                        detector,
+                        pose_estimator,
+                        output_path,
+                        data["character"],
+                        data["position"],
+                        job,
+                    )
                 except AppError:
                     raise
                 except Exception as e:
@@ -97,7 +90,7 @@ async def on_message(
                     }
                     await rabbitmq.publish(message, RabbitMQConfig.VIDEO_RESULT)
                 except Exception as e:
-                    raise
+                    print(e)
 
             except AppError as e:
                 message = { "email": data["email"], "detail": e.detail }
@@ -105,5 +98,3 @@ async def on_message(
                     await rabbitmq.publish(message, RabbitMQConfig.VIDEO_RESULT)
                 except Exception as e:
                     print(f"Failed to publish result: {e}")
-
-
