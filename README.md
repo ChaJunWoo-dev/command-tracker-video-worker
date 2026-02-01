@@ -304,3 +304,7 @@ AI 기반 커맨드 추정의 정확도에 대한 확신이 부족해, 필요한
 ### 향후 개선 방향
 
 - 캐릭터별 커맨드 추가 매핑
+
+### 사용한 AI모델 다운로드 링크
+[객체 탐지 - RTM Detector](https://drive.google.com/file/d/1oGTQijt1DnUnddS7PD_sGAgT4lxiX2wQ/view?usp=sharing)
+[포즈 추정 - RTM Pose](https://drive.google.com/file/d/1E3T_cVGcfFSKp3AErKeqTAbjOhebDJxO/view?usp=sharing)
